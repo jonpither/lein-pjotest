@@ -13,18 +13,18 @@
 (defn- run-tests-fn-form [report]
   `(fn [t#]
      (try
-;;       (require t# :reload-all) test-out has this
        (with-open [file-stream# (java.io.FileWriter.
                                  (clojure.java.io/file ~report (str t# ".xml")))]
-         (binding [clojure.test/*test-out* file-stream#]
-           (time (do
-                   (let [result# (clojure.test.junit/with-junit-output
-                                   (clojure.test/run-tests t#))
-                         result# (dissoc result# :type)]
-                     (println (ns-name t#) ":" result#)
-                     result#)))))
+         (time (let [result# (binding [clojure.test/*test-out* file-stream#
+                                       *out* file-stream#]               
+                               (clojure.test.junit/with-junit-output
+                                 (clojure.test/run-tests t#)))
+                     result# (dissoc result# :type)]
+                 (println (ns-name t#) ":" result#)
+                 result#)))
        (catch Throwable e#
          (clojure.test/is false (format "Uncaught exception: %s" e#))
+         (.printStackTrace e#)
          (System/exit 1)))))
 
 (defn- run-tests-form [report test-nses prefix]
@@ -47,13 +47,21 @@
      (require 'clojure.test)
      (require 'clojure.test.unit)))
 
-(defn- munge-proj [p]
-  (assoc (update-in p [:injections] concat
+(defn- munge-deps [p]
+  (update-in p [:dependencies] #(vec (conj % ['org.clojure/tools.namespace "0.1.0"]))))
+
+(defn- munge-eval-in [p]
+  (assoc p :Eval-in :subprocess))
+
+(defn- munge-injections [p]
+  (update-in p [:injections] concat
                     ['(require 'clojure.tools.namespace)
                      '(require 'clojure.test.junit)
                      '(require 'clojure.test)
-                     '(require 'clojure.java.io)])
-    :eval-in :subprocess))
+                     '(require 'clojure.java.io)]))
+
+(defn- munge-proj [p]
+  (->> p munge-deps munge-eval-in munge-injections))
 
 (defn- run-test-suite [project report prefix]
   (let [project (munge-proj project)
@@ -70,6 +78,11 @@
   (try
     (.mkdirs (file report-dir))
     (let [result (run-test-suite project report-dir prefix)]
-      (assert (successful? result)))
+      (println "Totals:" result)
+      (System/exit (if (successful? result) 0 1)))
     (finally
      (shutdown-agents)))))
+
+;; error handling
+;; can I write to test out and some other out? i.e. normal out?
+;; with-test-out binds out to test-out
