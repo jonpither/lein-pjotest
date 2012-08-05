@@ -103,7 +103,3 @@
       (System/exit (if (successful? result) 0 1)))
     (finally
      (shutdown-agents)))))
-
-;; error handling
-;; can I write to test out and some other out? i.e. normal out?
-;; with-test-out binds out to test-out
