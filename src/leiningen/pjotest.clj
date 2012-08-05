@@ -15,20 +15,38 @@
      (try
        (with-open [file-stream# (java.io.FileWriter.
                                  (clojure.java.io/file ~report (str t# ".xml")))]
-         (time (let [result# (binding [clojure.test/*test-out* file-stream#
-                                       *out* file-stream#]               
-                               (clojure.test.junit/with-junit-output
-                                 (clojure.test/run-tests t#)))
+         (time (let [error-out# (new java.io.StringWriter)
+                     result# (binding [clojure.test/*test-out* file-stream#
+                                        *out* file-stream#
+                                       clojure.test/*error-out* error-out#]
+                                (clojure.test.junit/with-junit-output
+                                  (clojure.test/run-tests t#)))
                      result# (dissoc result# :type)]
                  (println (ns-name t#) ":" result#)
+                 (when-let [error# (not-empty (str error-out#))]
+                   (println error#))
                  result#)))
        (catch Throwable e#
          (clojure.test/is false (format "Uncaught exception: %s" e#))
          (.printStackTrace e#)
          (System/exit 1)))))
 
+(defn- override-junit-error-report []
+  `(let [existing# (:error (methods clojure.test.junit/junit-report))]   
+     (defmethod clojure.test.junit/junit-report :error [m#]
+       (do
+         (.write clojure.test/*error-out*
+                 (if (instance? Throwable (:actual m#))
+                   (with-out-str (clojure.stacktrace/print-cause-trace (:actual m#)
+                                                                       clojure.test/*stack-trace-depth*))
+                   (:actual m#)))
+         (existing# m#)))))
+
 (defn- run-tests-form [report test-nses prefix]
   `(do
+     ;;fugly
+     (intern (the-ns (symbol "clojure.test")) (symbol "*error-out*") nil)
+     ~(override-junit-error-report)
      (if ~prefix
        (create-ns 'prefix))
      (let [test-nses# (map symbol (.split ~test-nses " "))]
@@ -58,7 +76,10 @@
                     ['(require 'clojure.tools.namespace)
                      '(require 'clojure.test.junit)
                      '(require 'clojure.test)
-                     '(require 'clojure.java.io)]))
+                     '(require 'clojure.java.io)
+                     '(require 'clojure.stacktrace)
+                     ]))
+                 ;;    '(activate)]))
 
 (defn- munge-proj [p]
   (->> p munge-deps munge-eval-in munge-injections))
