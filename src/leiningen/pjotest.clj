@@ -46,6 +46,7 @@
   `(do
      ;;fugly
      (intern (the-ns (symbol "clojure.test")) (symbol "*error-out*") nil)
+     (.setDynamic (var clojure.test/*error-out*) true)
      ~(override-junit-error-report)
      (if ~prefix
        (create-ns 'prefix))
