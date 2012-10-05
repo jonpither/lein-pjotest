@@ -21,10 +21,10 @@
                       false ~selectors)
           (test-var# var#))))))
 
-(defn- run-tests-fn-form [selector report]
+(defn- run-tests-fn-form [report & [selectors]]
   `(fn [t#]
      (try
-       ~(form-for-hook-selectors (vector selector))
+       ~(form-for-hook-selectors selectors)
        (with-open [file-stream# (java.io.FileWriter.
                                  (clojure.java.io/file ~report (str t# ".xml")))]
          (time (let [error-out# (new java.io.StringWriter)
@@ -67,7 +67,7 @@
        (let [results# (->> (if ~prefix (filter #(re-find (re-pattern ~prefix) (str %))
                                                (all-ns))
                                test-nses#)
-                           (pmap ~(run-tests-fn-form selector report))
+                           (pmap ~(run-tests-fn-form report (vector selector)))
                            (apply merge-with +))]
          (spit (clojure.java.io/file ~report (str "test.out")) results#)))
      (System/exit 0)))
@@ -91,6 +91,7 @@
                      '(require 'clojure.test)
                      '(require 'clojure.java.io)
                      '(require 'clojure.stacktrace)
+                     '(require 'robert.hooke)
                      ]))
                  ;;    '(activate)]))
 
@@ -109,11 +110,10 @@
   (let [opts (apply hash-map opts)
         report-dir (or (opts "-report-dir") "reports")
         prefix (opts "-prefix")
+        test-selectors (merge {:all '(constantly true)} (:test-selectors project))
         selector-name (when-let [opt (opts "-selector")] (read-string opt))
-        selector (or (get (:test-selectors project) selector-name) (fn [x] true))]
+        selector (some #(test-selectors %) [selector-name :default :all])]
     (try
-      (println opts)
-      (println "Using test selector " selector " type " (type selector))
     (.mkdirs (file report-dir))
     (let [result (run-test-suite project report-dir prefix selector)]
       (println "Totals:" result)
