@@ -8,21 +8,23 @@
             [leiningen.core.user]
             [leiningen.core.eval :as eval]
             [leiningen.test :as test]
-            [bultitude.core :as b]))
+            [bultitude.core :as b]
+            [robert.hooke]))
 
 ;; taken from leiningen.test
 (defn- form-for-hook-selectors [selectors]
   `(when (seq ~selectors)
-     (leiningen.core.injected/add-hook
+     (robert.hooke/add-hook
       (resolve 'clojure.test/test-var)
       (fn test-var-with-selector [test-var# var#]
         (when (reduce #(or %1 (%2 (assoc (meta var#) ::var var#)))
                       false ~selectors)
           (test-var# var#))))))
 
-(defn- run-tests-fn-form [report]
+(defn- run-tests-fn-form [selector report]
   `(fn [t#]
      (try
+       ~(form-for-hook-selectors (vector selector))
        (with-open [file-stream# (java.io.FileWriter.
                                  (clojure.java.io/file ~report (str t# ".xml")))]
          (time (let [error-out# (new java.io.StringWriter)
@@ -52,7 +54,7 @@
                    (:actual m#)))
          (existing# m#)))))
 
-(defn- run-tests-form [report test-nses prefix]
+(defn- run-tests-form [report test-nses prefix selector]
   `(do
      ;;fugly
      (intern (the-ns (symbol "clojure.test")) (symbol "*error-out*") nil)
@@ -65,7 +67,7 @@
        (let [results# (->> (if ~prefix (filter #(re-find (re-pattern ~prefix) (str %))
                                                (all-ns))
                                test-nses#)
-                           (pmap ~(run-tests-fn-form report))
+                           (pmap ~(run-tests-fn-form selector report))
                            (apply merge-with +))]
          (spit (clojure.java.io/file ~report (str "test.out")) results#)))
      (System/exit 0)))
@@ -95,10 +97,10 @@
 (defn- munge-proj [p]
   (->> p munge-deps munge-eval-in munge-injections))
 
-(defn- run-test-suite [project report prefix]
+(defn- run-test-suite [project report prefix selector]
   (let [project (munge-proj project)
         test-nses (clojure.string/join " " (b/namespaces-on-classpath :classpath (map file (:test-paths project))))]
-    (eval/eval-in-project project (run-tests-form report test-nses prefix))
+    (eval/eval-in-project project (run-tests-form report test-nses prefix selector))
     (read-string (slurp (file report "test.out")))))
 
 (defn pjotest
@@ -107,13 +109,13 @@
   (let [opts (apply hash-map opts)
         report-dir (or (opts "-report-dir") "reports")
         prefix (opts "-prefix")
-        selector-name (-> opts (get "-selector") read-string)
-        selector (or (selector-name (:test-selectors project)) (fn [x] true))]
+        selector-name (when-let [opt (opts "-selector")] (read-string opt))
+        selector (or (get (:test-selectors project) selector-name) (fn [x] true))]
     (try
       (println opts)
       (println "Using test selector " selector " type " (type selector))
     (.mkdirs (file report-dir))
-    (let [result (run-test-suite project report-dir prefix)]
+    (let [result (run-test-suite project report-dir prefix selector)]
       (println "Totals:" result)
       (System/exit (if (successful? result) 0 1)))
     (finally
