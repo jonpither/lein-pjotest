@@ -10,6 +10,16 @@
             [leiningen.test :as test]
             [bultitude.core :as b]))
 
+;; taken from leiningen.test
+(defn- form-for-hook-selectors [selectors]
+  `(when (seq ~selectors)
+     (leiningen.core.injected/add-hook
+      (resolve 'clojure.test/test-var)
+      (fn test-var-with-selector [test-var# var#]
+        (when (reduce #(or %1 (%2 (assoc (meta var#) ::var var#)))
+                      false ~selectors)
+          (test-var# var#))))))
+
 (defn- run-tests-fn-form [report]
   `(fn [t#]
      (try
@@ -32,7 +42,7 @@
          (System/exit 1)))))
 
 (defn- override-junit-error-report []
-  `(let [existing# (:error (methods clojure.test.junit/junit-report))]   
+  `(let [existing# (:error (methods clojure.test.junit/junit-report))]
      (defmethod clojure.test.junit/junit-report :error [m#]
        (do
          (.write clojure.test/*error-out*
@@ -96,8 +106,12 @@
   [project & opts]
   (let [opts (apply hash-map opts)
         report-dir (or (opts "-report-dir") "reports")
-        prefix (opts "-prefix")]
-  (try
+        prefix (opts "-prefix")
+        selector-name (-> opts (get "-selector") read-string)
+        selector (or (selector-name (:test-selectors project)) (fn [x] true))]
+    (try
+      (println opts)
+      (println "Using test selector " selector " type " (type selector))
     (.mkdirs (file report-dir))
     (let [result (run-test-suite project report-dir prefix)]
       (println "Totals:" result)
