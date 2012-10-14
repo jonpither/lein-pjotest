@@ -1,4 +1,4 @@
-(defproject lein-pjotest "0.1.1-SNAPSHOT"
+(defproject lein-pjotest "0.1.2-SNAPSHOT"
   :description "A leiningen plugin for running test namespaces in parallel with junit output"
   :url "https://github.com/jonpither/lein-pjotest"
   :license {:name "Eclipse Public License"

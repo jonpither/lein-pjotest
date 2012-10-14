@@ -18,6 +18,10 @@ Put `[lein-pjotest "0.1.0-SNAPSHOT"]` into the `:plugins` vector of your project
 
     $ lein pjotest
 
+Test selectors are also supported as per `lein test` but are specified using the `-selector` switch, e.g.
+
+    $ lein pjotest -selector :integration
+
 ## License
 
 Distributed under the Eclipse Public License, the same as Clojure.
