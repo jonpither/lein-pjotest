@@ -6,9 +6,11 @@
    [clojure.tools.namespace])
   (:require [leiningen.core.classpath :as classpath]
             [leiningen.core.user]
+            [leiningen.core.main :as main]
             [leiningen.core.eval :as eval]
             [leiningen.test :as test]
-            [bultitude.core :as b]))
+            [bultitude.core :as b]
+            [leiningen.core.project :as project]))
 
 (defn- run-tests-fn-form [report]
   `(fn [t#]
@@ -51,7 +53,7 @@
      (if ~prefix
        (create-ns 'prefix))
      (let [test-nses# (map symbol (.split ~test-nses " "))]
-       (apply require :reload-all test-nses#)
+       (apply require :reload test-nses#)
        (let [results# (->> (if ~prefix (filter #(re-find (re-pattern ~prefix) (str %))
                                                (all-ns))
                                test-nses#)
@@ -88,7 +90,8 @@
 (defn- run-test-suite [project report prefix]
   (let [project (munge-proj project)
         test-nses (clojure.string/join " " (b/namespaces-on-classpath :classpath (map file (:test-paths project))))]
-    (eval/eval-in-project project (run-tests-form report test-nses prefix))
+    (binding [main/*exit-process?* (not= :leiningen (:eval-in project))]
+      (eval/eval-in-project project (run-tests-form report test-nses prefix)))
     (read-string (slurp (file report "test.out")))))
 
 (defn pjotest
