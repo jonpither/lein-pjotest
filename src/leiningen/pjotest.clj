@@ -63,7 +63,7 @@
      (if ~prefix
        (create-ns 'prefix))
      (let [test-nses# (map symbol (.split ~test-nses " "))]
-       (apply require :reload-all test-nses#)
+       (apply require :reload test-nses#)
        (let [results# (->> (if ~prefix (filter #(re-find (re-pattern ~prefix) (str %))
                                                (all-ns))
                                test-nses#)
@@ -79,7 +79,9 @@
      (require 'clojure.test.unit)))
 
 (defn- munge-deps [p]
-  (update-in p [:dependencies] #(vec (conj % ['org.clojure/tools.namespace "0.1.0"]))))
+  (update-in p [:dependencies] #(vec (conj %
+                                           ['org.clojure/tools.namespace "0.1.0"]
+                                           ['robert/hooke "1.1.2"]))))
 
 (defn- munge-eval-in [p]
   (assoc p :Eval-in :subprocess))
