@@ -81,7 +81,9 @@
      (require 'clojure.test.unit)))
 
 (defn- munge-deps [p]
-  (update-in p [:dependencies] #(vec (conj % ['org.clojure/tools.namespace "0.1.0"]))))
+  (update-in p [:dependencies] #(vec (conj %
+                                           ['org.clojure/tools.namespace "0.1.0"]
+                                           ['robert/hooke "1.1.2"]))))
 
 (defn- munge-eval-in [p]
   (assoc p :Eval-in :subprocess))
